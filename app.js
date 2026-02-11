@@ -3,14 +3,14 @@ const express = require("express")
 const app = express()
 require("dotenv").config()
 const connectDB = require("./db/connect")
-const tasks = require("./routes/tasks")
+const products = require("./routes/products")
 const notFound = require("./middleware/not-fond")
 const errorHandler = require("./middleware/error-handler")
 
 // middleware
 app.use(express.json())
-app.use("/api/v1/tasks", tasks)
-app.use(express.static("./public"))
+app.use("/api/v1/products", products)
+// app.use(express.static("./public"))
 app.use(notFound)
 app.use(errorHandler)
 
