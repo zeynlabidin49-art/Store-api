@@ -10,7 +10,7 @@ const errorHandler = require("./middleware/error-handler")
 // middleware
 app.use(express.json())
 app.use("/api/v1/products", products)
-// app.use(express.static("./public"))
+app.use(express.static("./public"))
 app.use(notFound)
 app.use(errorHandler)
 

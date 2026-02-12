@@ -1,87 +1,104 @@
-const tasksDOM = document.querySelector('.tasks')
-const loadingDOM = document.querySelector('.loading-text')
-const formDOM = document.querySelector('.task-form')
-const taskInputDOM = document.querySelector('.task-input')
-const formAlertDOM = document.querySelector('.form-alert')
-// Load tasks from /api/tasks
-const showTasks = async () => {
-  loadingDOM.style.visibility = 'visible'
-  try {
-    const {
-      data: { tasks },
-    } = await axios.get('/api/v1/tasks')
-    if (tasks.length < 1) {
-      tasksDOM.innerHTML = '<h5 class="empty-list">No tasks in your list</h5>'
-      loadingDOM.style.visibility = 'hidden'
-      return
+const productsDOM = document.querySelector('.products-container')
+const searchInput = document.querySelector('.search-input')
+const companiesDOM = document.querySelector('.company-btn-container')
+const sortInput = document.querySelector('.sort-input')
+
+// Base URL for your API
+const url = '/api/v1/products'
+
+const fetchProducts = async () => {
+    productsDOM.innerHTML = '<div class="loading"></div>'
+    try {
+        // Construct URL based on current inputs
+        const nameValue = searchInput.value
+        const sortValue = sortInput.value
+        // We find the active company button (if we had a class for it), 
+        // but for now let's just fetch default and let listeners handle params
+        
+        const params = new URLSearchParams()
+        if(nameValue) params.append('name', nameValue)
+        if(sortValue) params.append('sort', sortValue)
+        
+        // Check if a specific company was clicked (handled by event listeners below)
+        // For init, we just fetch all.
+        
+        const resp = await fetch(`${url}?${params.toString()}`)
+        const data = await resp.json()
+        
+        // Handle "No Products Found"
+        if (data.products.length < 1) {
+            productsDOM.innerHTML = '<h5 class="empty-list">No products matched your search</h5>'
+            return
+        }
+        
+        const products = data.products.map((product) => {
+            const { name, price, company, featured } = product
+            return `<div class="single-product">
+                <footer>
+                    <h5>${name}</h5>
+                    <span class="company">${company}</span>
+                    <span class="price">$${price}</span>
+                </footer>
+            </div>`
+        }).join('')
+        productsDOM.innerHTML = products
+    } catch (error) {
+        productsDOM.innerHTML = '<h5 class="error">There was an error</h5>'
     }
-    const allTasks = tasks
-      .map((task) => {
-        const { completed, _id: taskID, name } = task
-        return `<div class="single-task ${completed && 'task-completed'}">
-<h5><span><i class="far fa-check-circle"></i></span>${name}</h5>
-<div class="task-links">
-
-
-
-<!-- edit link -->
-<a href="task.html?id=${taskID}"  class="edit-link">
-<i class="fas fa-edit"></i>
-</a>
-<!-- delete btn -->
-<button type="button" class="delete-btn" data-id="${taskID}">
-<i class="fas fa-trash"></i>
-</button>
-</div>
-</div>`
-      })
-      .join('')
-    tasksDOM.innerHTML = allTasks
-  } catch (error) {
-    tasksDOM.innerHTML =
-      '<h5 class="empty-list">There was an error, please try later....</h5>'
-  }
-  loadingDOM.style.visibility = 'hidden'
 }
 
-showTasks()
+// Initial Fetch
+fetchProducts()
 
-// delete task /api/tasks/:id
-
-tasksDOM.addEventListener('click', async (e) => {
-  const el = e.target
-  if (el.parentElement.classList.contains('delete-btn')) {
-    loadingDOM.style.visibility = 'visible'
-    const id = el.parentElement.dataset.id
-    try {
-      await axios.delete(`/api/v1/tasks/${id}`)
-      showTasks()
-    } catch (error) {
-      console.log(error)
-    }
-  }
-  loadingDOM.style.visibility = 'hidden'
+// 1. Search Logic (Debounced slightly for performance)
+searchInput.addEventListener('keyup', () => {
+    fetchProducts()
 })
 
-// form
+// 2. Company Filter Logic
+companiesDOM.addEventListener('click', async (e) => {
+    const el = e.target
+    if (el.classList.contains('company-btn')) {
+        const company = el.dataset.id
+        
+        // Build the specific URL for company
+        let query = `${url}?`
+        if(company !== 'all') {
+            query += `company=${company}&`
+        }
+        if(searchInput.value) {
+            query += `name=${searchInput.value}&`
+        }
+        if(sortInput.value) {
+            query += `sort=${sortInput.value}`
+        }
 
-formDOM.addEventListener('submit', async (e) => {
-  e.preventDefault()
-  const name = taskInputDOM.value
+        // Fetch
+        try {
+            const resp = await fetch(query)
+            const data = await resp.json()
+             if (data.products.length < 1) {
+                productsDOM.innerHTML = '<h5 class="empty-list">No products matched your search</h5>'
+                return
+            }
+            const products = data.products.map((product) => {
+                const { name, price, company } = product
+                return `<div class="single-product">
+                    <footer>
+                        <h5>${name}</h5>
+                        <span class="company">${company}</span>
+                        <span class="price">$${price}</span>
+                    </footer>
+                </div>`
+            }).join('')
+            productsDOM.innerHTML = products
+        } catch (error) {
+            console.log(error)
+        }
+    }
+})
 
-  try {
-    await axios.post('/api/v1/tasks', { name })
-    showTasks()
-    taskInputDOM.value = ''
-    formAlertDOM.style.display = 'block'
-    formAlertDOM.textContent = `success, task added`
-    formAlertDOM.classList.add('text-success')
-  } catch (error) {
-    formAlertDOM.style.display = 'block'
-    formAlertDOM.innerHTML = `error, please try again`
-  }
-  setTimeout(() => {
-    formAlertDOM.style.display = 'none'
-    formAlertDOM.classList.remove('text-success')
-  }, 3000)
+// 3. Sort Logic
+sortInput.addEventListener('change', () => {
+    fetchProducts() // The main function reads the sort input value automatically
 })

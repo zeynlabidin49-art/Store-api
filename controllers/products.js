@@ -11,9 +11,37 @@ const product = require("../models/product");
 
 const getAllProducts = asyncWraper(async (req, res, next) => {
   let { featured, company, name, sort, fields, page, limit } = req.query;
-  const p = page || 0
-  const lim = limit || 4
-  const products = await Product.find({}).skip(p*lim).limit(lim);
+  const p = page || 0;
+  const lim = limit || 11;
+  const queryObject = {};
+  if (featured) {
+    queryObject.featured = featured === "true" ? true : false;
+  }
+  if (company) {
+    queryObject.company = company
+  }
+  if (name) {
+    queryObject.name = {$regex: name, $options: 'i'}
+  }
+  let result = Product.find(queryObject)
+  if (sort) {
+    const sortList = sort.split(",").join(" ")
+    result.sort(sortList)
+  }
+  if (fields) {
+    const fieldList = fields.split(",").join(" ")
+    result.select(fieldList)
+  }
+  result = result.skip(p * lim)
+    .limit(lim);
+  const products = await result
+
+  if (!products) return next(createCustomError("bbbb error", 404));
+  res.json({ products, nbHits: products.length });
+  
+  /*const products = await Product.find({})
+    .skip(p * lim)
+    .limit(lim);
   let sortedProducts = products;
 
   if (featured)
@@ -25,32 +53,38 @@ const getAllProducts = asyncWraper(async (req, res, next) => {
       (product) => product.company === company,
     );
   if (name)
-    sortedProducts = sortedProducts.filter((product) => product.name.includes(name))
+    sortedProducts = sortedProducts.filter((product) =>
+      product.name.includes(name),
+    );
+  
   if (sort) {
     sort === "price"
       ? sortedProducts.sort((a, b) => a.price - b.price)
-      : sort === "-price" 
+      : sort === "-price"
         ? sortedProducts.sort((a, b) => b.price - a.price)
         : sort === "name"
           ? sortedProducts.sort((a, b) => a.name.localeCompare(b.name))
           : next(createCustomError("ivalide sort query"));
   }
-  if(fields) {
-    fields += `,_id`
-    console.log(fields)
-    fields = Array.from(fields.split(","))
-    console.log(fields)
-    sortedProducts =sortedProducts.map(prod => {
-        prod = Object.fromEntries(fields.map(field => [field, prod[field]]))
-        console.log(prod)
-        return prod
-    })
-    console.log(sortedProducts)
+  if (fields) {
+    fields += `,_id`;
+    console.log(fields);
+    fields = Array.from(fields.split(","));
+    console.log(fields);
+    sortedProducts = sortedProducts.map((prod) => {
+      prod = Object.fromEntries(fields.map((field) => [field, prod[field]]));
+      console.log(prod);
+      return prod;
+    });
+    console.log(sortedProducts);
   }
 
   if (!sortedProducts) return next(createCustomError("bbbb error", 404));
-  res.json({ sortedProducts });
+  res.json({ sortedProducts });*/
+
+  
 });
+
 const getSingleProduct = asyncWraper(async (req, res, next) => {
   const { id } = req.params;
   const product = await Product.findOne({ _id: id });
