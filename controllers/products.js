@@ -10,7 +10,7 @@ const { customApiError, createCustomError } = require("../errors/custom-error");
 const product = require("../models/product");
 
 const getAllProducts = asyncWraper(async (req, res, next) => {
-  let { featured, company, name, sort, fields, page, limit } = req.query;
+  let { featured, company, name, sort, fields, page, limit, numericFilters} = req.query;
   const p = page || 0;
   const lim = limit || 11;
   const queryObject = {};
@@ -18,27 +18,59 @@ const getAllProducts = asyncWraper(async (req, res, next) => {
     queryObject.featured = featured === "true" ? true : false;
   }
   if (company) {
-    queryObject.company = company
+    queryObject.company = company;
   }
   if (name) {
-    queryObject.name = {$regex: name, $options: 'i'}
+    queryObject.name = { $regex: name, $options: "i" };
   }
-  let result = Product.find(queryObject)
+  if (numericFilters) {
+    // 1. Map user symbols to Mongoose symbols
+    const operatorMap = {
+      ">": "$gt",
+      ">=": "$gte",
+      "=": "$eq",
+      "<": "$lt",
+      "<=": "$lte",
+    };
+
+    // 2. Regex to find the symbols in the string
+    const regEx = /\b(<|>|>=|=|<|<=)\b/g;
+
+    // 3. Replace symbols with Mongoose code (e.g. ">" becomes "-$gt-")
+    let filters = numericFilters.replace(
+      regEx,
+      (match) => `-${operatorMap[match]}-`,
+    );
+
+    // 4. Define which fields are allowed to be filtered (Security!)
+    const options = ["price", "rating"];
+
+    // 5. Split the string and add to queryObject
+    filters = filters.split(",").forEach((item) => {
+      const [field, operator, value] = item.split("-");
+
+      // Only add if the field is allowed (price or rating)
+      if (options.includes(field)) {
+        queryObject[field] = { [operator]: Number(value) };
+      }
+    });
+  }
+
+  let result = Product.find(queryObject);
   if (sort) {
-    const sortList = sort.split(",").join(" ")
-    result.sort(sortList)
+    const sortList = sort.split(",").join(" ");
+    result.sort(sortList);
   }
   if (fields) {
-    const fieldList = fields.split(",").join(" ")
-    result.select(fieldList)
+    const fieldList = fields.split(",").join(" ");
+    result.select(fieldList);
   }
-  result = result.skip(p * lim)
-    .limit(lim);
-  const products = await result
+  result = result.skip(p * lim).limit(lim);
+  const products = await result;
 
   if (!products) return next(createCustomError("bbbb error", 404));
   res.json({ products, nbHits: products.length });
-  
+
   /*const products = await Product.find({})
     .skip(p * lim)
     .limit(lim);
@@ -81,8 +113,6 @@ const getAllProducts = asyncWraper(async (req, res, next) => {
 
   if (!sortedProducts) return next(createCustomError("bbbb error", 404));
   res.json({ sortedProducts });*/
-
-  
 });
 
 const getSingleProduct = asyncWraper(async (req, res, next) => {
